@@ -32,7 +32,6 @@ def optimization_node(state: AgentState) -> Dict[str, Any]:
 def generation_node(state: AgentState) -> Dict[str, Any]:
     """Generates the final response using configuration-driven parameters."""
     
-    # The API key and model type are cleanly pulled from your .env settings environment
     llm = ChatOpenAI(
         model=settings.DEFAULT_LLM_MODEL, 
         temperature=settings.DEFAULT_MODEL_TEMPERATURE,
@@ -42,7 +41,6 @@ def generation_node(state: AgentState) -> Dict[str, Any]:
     
     context_to_use = state.get("optimized_context", "")
     
-    # Connect system structures standardly
     system_prompt = {
         "role": "system", 
         "content": f"Use this context to respond: \n\n{context_to_use}"
