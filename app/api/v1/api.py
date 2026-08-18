@@ -1,7 +1,7 @@
 from fastapi import APIRouter
-from app.api.v1.routers import naiverag
+from app.api.v1.routers import agent
 
 api_router = APIRouter()
 
-# Include your compression router
-api_router.include_router(naiverag.router, prefix="/naive-rag", tags=["naive-rag"])
+# Register agent routing triggers under an identifiable /agent workspace scope
+api_router.include_router(agent.router, prefix="/agent", tags=["Agent Workflows"])
