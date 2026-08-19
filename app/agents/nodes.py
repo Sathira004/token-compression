@@ -1,19 +1,55 @@
 from typing import Dict, Any
+from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from langchain_core.runnables import RunnableConfig
 from app.agents.state import AgentState
-from app.core.config import settings  # <-- Import your configuration class
+from app.core.config import settings
+from app.services.rag_service import run_naive_rag
+
+def route_query(state: AgentState) -> str:
+    """Decides whether the user's query requires vector search retrieval."""
+    user_message = state["messages"][-1].content if state.get("messages") else ""
+    
+    # Optional fast heuristic for trivial greetings
+    if user_message.lower().strip() in ["hi", "hello", "hey", "who are you?", "thanks", "bye"]:
+        return "generate_response"
+    
+    # Or use the LLM to classify intent
+    router_llm = ChatOpenAI(
+        model=settings.SUB_AGENT_LLM_ROUTING,
+        temperature=0.0,
+        api_key=settings.OPENROUTER_API_KEY,
+        base_url="https://openrouter.ai/api/v1"
+    )
+    
+    classification = router_llm.invoke([
+        SystemMessage(content=(
+            "You are a query classifier. Output 'RETRIEVE' if the question requires external "
+            "document/domain knowledge lookup, otherwise output 'DIRECT'."
+        )),
+        HumanMessage(content=user_message)
+    ])
+    
+    decision = classification.content.strip().upper()
+    if "RETRIEVE" in decision:
+        return "retrieve_documents"
+    return "generate_response"
 
 
 def retrieval_node(state: AgentState) -> Dict[str, Any]:
-    """Retrieves raw context documents for the user's query.
+    """Retrieves raw context documents from Pinecone for the user's query."""
+
+    print("\n\nRetrieval Node Triggered!\n\n")
     
-    This is a placeholder — replace with your actual retrieval logic
-    (e.g. vector store lookup, API call, database query).
-    """
-    # TODO: Implement actual retrieval logic
-    user_message = state["messages"][-1].content if state["messages"] else ""
-    raw_context = f"Retrieved context for: {user_message}"
+    user_message = ""
+    if state.get("messages"):
+        last_msg = state["messages"][-1]
+        user_message = last_msg.content if hasattr(last_msg, "content") else str(last_msg)
+
+    raw_context = ""
+    if user_message:
+        raw_context = run_naive_rag(query=user_message, k=4)
+
     return {"raw_context": raw_context}
 
 
