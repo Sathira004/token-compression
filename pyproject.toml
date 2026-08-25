@@ -6,12 +6,15 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "fastapi",
+    "fastmcp>=3.4.7",
     "langchain",
     "langchain-community",
+    "langchain-mcp-adapters>=0.3.2",
     "langchain-openai",
     "langchain-pinecone",
     "langgraph",
     "pydantic-settings",
     "pypdf",
+    "toons>=0.7.0",
     "uvicorn[standard]",
 ]
