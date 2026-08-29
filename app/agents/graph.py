@@ -20,12 +20,14 @@ builder.add_conditional_edges(
     route_query,
     {
         "retrieve_documents": "retrieve_documents",
-        "generate_response": "generate_response"
+        "generate_response": "optimize_context"  # Route to optimization first
     }
 )
 
 # Retrieval pipeline path
 builder.add_edge("retrieve_documents", "optimize_context")
+
+# Optimization always precedes generation
 builder.add_edge("optimize_context", "generate_response")
 
 # Final end

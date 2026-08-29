@@ -5,7 +5,7 @@ mcp = FastMCP("ToonServer")
 @mcp.tool()
 def fetch_enterprise_token_data(category: str) -> list:
     """
-    Fetches raw enterprise logging data patterns. 
+    ·. 
     Returns an array of structured JSON dictionaries.
     """
     # Simulated data records representing long-context document tracking tables

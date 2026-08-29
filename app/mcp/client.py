@@ -19,6 +19,11 @@ async def toonify_mcp_response(request: MCPToolCallRequest, handler):
         # toons.dumps handles arrays of uniform objects using efficient tabular matrices
         toon_string = toons.dumps(result.structuredContent)
         
+        print("\n📤 [MCP Interceptor] STEP 2: Converted TOON Payload Sent to OpenRouter LLM:")
+        print("=" * 60)
+        print(toon_string)
+        print("=" * 60)
+        
         # 4. Overwrite the primary context block traveling to the LLM
         result.content = [TextContent(type="text", text=toon_string)]
         
