@@ -34,7 +34,11 @@ async def trigger_agent_workflow(payload: ChatRequest):
         return {
             "status": "success",
             "active_process": payload.process_type,
-            "response": last_message.content
+            "response": last_message.content,
+            "token_usage": final_state.get(
+                "token_usage",
+                {"input": 0, "output": 0, "total": 0},
+            ),
         }
         
     except Exception as e:
