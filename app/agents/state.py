@@ -18,5 +18,8 @@ class AgentState(TypedDict):
     # Keeps track of text optimized by LLMLingua or TOON
     optimized_context: str
 
+    # Instructions loaded from the active skill file
+    skill_instructions: str
+
     # Token usage reported by the final generation model
     token_usage: TokenUsage

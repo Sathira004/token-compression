@@ -7,6 +7,7 @@ class ProcessType(str, Enum):
     LLMLINGUA_ONLY = "llmlingua_only"
     TOON_ONLY = "toon_only"
     TOON_SKILL = "toon_skill"
+    TOON_PLUS_SKILL = "toon_plus_skill"
 
 class ChatRequest(BaseModel):
     message: str = Field(..., description="The prompt or query from the user UI")

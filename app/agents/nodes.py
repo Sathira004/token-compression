@@ -1,13 +1,16 @@
 from typing import Dict, Any
-import toons  # <-- High-performance Rust-backed TOON encoder
+import toons
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from langchain_core.runnables import RunnableConfig
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.agents.state import AgentState, TokenUsage
 from app.agents.config import GraphConfig
 from app.core.config import settings
 from app.services.rag_service import run_naive_rag
+from app.services.llmlingua_service import compress_with_llmlingua
+from app.services.skill_service import load_skill, select_skill
 from app.mcp.client import get_integrated_mcp_tools
 
 
@@ -35,11 +38,12 @@ def route_query(state: AgentState) -> str:
     if user_message.lower().strip() in ["hi", "hello", "hey", "who are you?", "thanks", "bye"]:
         return "generate_response"
     
-    router_llm = ChatOpenAI(
-        model=settings.SUB_AGENT_LLM_ROUTING,
-        temperature=0.0,
-        api_key=settings.OPENROUTER_API_KEY,
-        base_url="https://openrouter.ai/api/v1"
+    router_llm = ChatGoogleGenerativeAI(
+        model=settings.GOOGLE_LLM_MODEL,
+        api_key=settings.GOOGLE_API_KEY,
+        project=settings.GOOGLE_CLOUD_PROJECT,
+        location=settings.GOOGLE_CLOUD_LOCATION,
+        vertexai=True,
     )
     
     classification = router_llm.invoke([
@@ -50,7 +54,7 @@ def route_query(state: AgentState) -> str:
         HumanMessage(content=user_message)
     ])
     
-    decision = classification.content.strip().upper()
+    decision = classification.text.strip().upper()
     if "RETRIEVE" in decision:
         return "retrieve_documents"
     return "generate_response"
@@ -92,9 +96,17 @@ def optimization_node(state: AgentState, config: RunnableConfig) -> Dict[str, An
         print(f" -> Mode: '{mode}'. Bypassing token optimization layers.")
         optimized_context = raw_context
         
-    # elif mode == "llmlingua_only":
-    #     print(" -> Mode: 'llmlingua_only'. Running LLMLingua compression pipeline.")
-    #     optimized_context = compress_with_lingua(raw_context)
+    elif mode == "llmlingua_only":
+        print(" -> Mode: 'llmlingua_only'. Running LLMLingua compression pipeline.")
+        user_prompt = ""
+        if state.get("messages"):
+            last_message = state["messages"][-1]
+            user_prompt = (
+                last_message.content
+                if hasattr(last_message, "content")
+                else str(last_message)
+            )
+        optimized_context = compress_with_llmlingua(raw_context, user_prompt)
         
     elif mode == "toon_only":
         print(" -> Mode: 'toon_only'. Compressing structure with official 'toons' library.")
@@ -105,17 +117,37 @@ def optimization_node(state: AgentState, config: RunnableConfig) -> Dict[str, An
         print("\n📤 [Optimization Node] TOON-Encoded Context:")
         print(optimized_context)
         
-    # elif mode == "toon_skill":
-    #     print(" -> Mode: 'toon_skill'. Extracting dynamic skills and encoding to TOON format.")
-    #     skills = load_skills(state["messages"])
-    #     # Format context alongside your instruction sets using TOON syntax rules
-    #     combined_payload = {"context": raw_context, "loaded_skills": skills}
-    #     optimized_context = toons.dumps(combined_payload)
+    elif mode in ("toon_skill", "toon_plus_skill"):
+        print(" -> Mode: 'toon_plus_skill'. Loading skill instructions and encoding context with TOON.")
+        user_prompt = ""
+        if state.get("messages"):
+            last_message = state["messages"][-1]
+            user_prompt = (
+                last_message.content
+                if hasattr(last_message, "content")
+                else str(last_message)
+            )
+
+        skill_name = select_skill(user_prompt)
+        print(f" -> Selected skill: '{skill_name}'")
+        skill_instructions = load_skill(skill_name)
+        optimized_context = toons.dumps({
+            "context": raw_context,
+            "skill": skill_instructions,
+        })
+
+        return {
+            "optimized_context": optimized_context,
+            "skill_instructions": skill_instructions,
+        }
         
     else:
         optimized_context = raw_context
 
-    return {"optimized_context": optimized_context}
+    return {
+        "optimized_context": optimized_context,
+        "skill_instructions": "",
+    }
 
 
 async def generation_node(
@@ -129,7 +161,11 @@ async def generation_node(
     print("\n\n[Generation Node] Compiling model context with MCP integration...")
 
     graph_config = GraphConfig.model_validate(config.get("configurable", {}))
-    use_toon = graph_config.process_type != "normal_rag"
+    use_toon = graph_config.process_type in (
+        "toon_only",
+        "toon_skill",
+        "toon_plus_skill",
+    )
     
     # 1. Fetch live tool vectors configured with our Option A TOON interceptor
     mcp_tools = await get_integrated_mcp_tools(use_toon=use_toon)
@@ -171,21 +207,32 @@ async def generation_node(
     
     # 4. Extract the active optimized context (standard text, LLMLingua, or TOON strings)
     context_to_use = state.get("optimized_context", "")
+    skill_instructions = state.get("skill_instructions", "")
     
     # 5. Combine all context sources: RAG context + ToonServer data
     full_context = context_to_use + toon_data_context
+    context_format = (
+        "compressed Token-Oriented Object Notation (TOON) layout"
+        if use_toon
+        else "compressed text layout"
+    )
     
     system_prompt = {
         "role": "system", 
         "content": (
             "You are a highly efficient assistant operating within a strict context pipeline. "
             "Use the provided context to answer the user request. Context includes token data "
-            f"in compressed Token-Oriented Object Notation (TOON) layout:\n\n{full_context}"
+            f"in {context_format}.\n\n"
+            f"Active skill instructions:\n{skill_instructions}\n\n"
+            f"Context:\n{full_context}"
         )
     }
     
     # 6. Invoke OpenRouter model with full context
-    response = await llm.ainvoke([system_prompt] + state["messages"])
+    messages = state["messages"]
+    if graph_config.process_type == "llmlingua_only" and messages:
+        messages = messages[:-1]
+    response = await llm.ainvoke([system_prompt] + messages)
     token_usage = _get_token_usage(response)
 
     print(f"\n\n[Generation Node] Response Generated: {response.content[:100]}...\n\n")
