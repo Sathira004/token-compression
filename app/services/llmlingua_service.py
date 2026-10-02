@@ -27,17 +27,20 @@ def _get_compressor() -> Any:
 
 
 def compress_with_llmlingua(context: str, user_prompt: str) -> str:
-	"""Compress RAG context and the current user prompt into one payload."""
-	combined_prompt = "\n\n".join(
-		part.strip() for part in (context, user_prompt) if part and part.strip()
-	)
-	if not combined_prompt:
+	"""Compress RAG context while keeping the user prompt as the question."""
+	context_parts = [
+		part.strip() for part in context.split("\n\n") if part and part.strip()
+	]
+	if not context_parts:
 		return ""
 
 	result = _get_compressor().compress_prompt(
-		[combined_prompt],
+		context_parts,
 		question=user_prompt,
-        
 		rate=settings.LLMLINGUA_RATE,
 	)
+ 
+	print("\n📤 [Optimization Node] LLMLingua-Compressed Context:")
+	print(result["compressed_prompt"])
+ 
 	return str(result["compressed_prompt"])

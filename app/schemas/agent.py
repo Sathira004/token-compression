@@ -13,3 +13,10 @@ class ChatRequest(BaseModel):
     message: str = Field(..., description="The prompt or query from the user UI")
     thread_id: str = Field(..., description="Unique ID to maintain user chat history memory context")
     process_type: ProcessType = Field(..., description="The chosen active toggle setting from the frontend dashboard")
+    run_id: str | None = None
+    prompt_id: str | None = None
+    task_type: str | None = None
+    arm: str | None = None
+    repeat: int = Field(default=1, ge=1)
+    model: str | None = None
+    ragas: dict[str, float] = Field(default_factory=dict)

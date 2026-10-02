@@ -8,6 +8,10 @@ class TokenUsage(TypedDict):
     output: int
     total: int
 
+class RuntimeMetrics(TypedDict, total=False):
+    retrieval: float
+    generation: float
+
 class AgentState(TypedDict):
     # Appends new messages automatically instead of over-writing them
     messages: Annotated[list[AnyMessage], operator.add] 
@@ -23,3 +27,6 @@ class AgentState(TypedDict):
 
     # Token usage reported by the final generation model
     token_usage: TokenUsage
+
+    # Node timings measured in milliseconds
+    runtime_ms: RuntimeMetrics

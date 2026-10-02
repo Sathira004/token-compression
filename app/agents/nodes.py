@@ -1,3 +1,4 @@
+from time import perf_counter
 from typing import Dict, Any
 import toons
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -64,6 +65,7 @@ def retrieval_node(state: AgentState) -> Dict[str, Any]:
     """Retrieves raw context documents from Pinecone for the user's query."""
     print("\n\n[Retrieval Node] Querying Pinecone...")
     
+    started_at = perf_counter()
     user_message = ""
     if state.get("messages"):
         last_msg = state["messages"][-1]
@@ -74,7 +76,13 @@ def retrieval_node(state: AgentState) -> Dict[str, Any]:
         # Pull records out of your Integrated Inference API setup
         raw_context = run_naive_rag(query=user_message, k=4)
 
-    return {"raw_context": raw_context}
+    return {
+        "raw_context": raw_context,
+        "runtime_ms": {
+            **state.get("runtime_ms", {}),
+            "retrieval": (perf_counter() - started_at) * 1000,
+        },
+    }
 
 
 def optimization_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
@@ -82,6 +90,7 @@ def optimization_node(state: AgentState, config: RunnableConfig) -> Dict[str, An
     Evaluates the 5-way process type switch requested by the frontend.
     Leverages the official 'toons' library to natively encode context matrix streams.
     """
+    started_at = perf_counter()
     print("\n\n[Optimization Node] Processing context switch...")
     
     # 1. Safely extract the frontend configuration parameters mapping
@@ -139,6 +148,10 @@ def optimization_node(state: AgentState, config: RunnableConfig) -> Dict[str, An
         return {
             "optimized_context": optimized_context,
             "skill_instructions": skill_instructions,
+            "runtime_ms": {
+                **state.get("runtime_ms", {}),
+                "compression": (perf_counter() - started_at) * 1000,
+            },
         }
         
     else:
@@ -147,6 +160,10 @@ def optimization_node(state: AgentState, config: RunnableConfig) -> Dict[str, An
     return {
         "optimized_context": optimized_context,
         "skill_instructions": "",
+        "runtime_ms": {
+            **state.get("runtime_ms", {}),
+            "compression": (perf_counter() - started_at) * 1000,
+        },
     }
 
 
@@ -158,6 +175,7 @@ async def generation_node(
     Generates the final response via OpenRouter. 
     Executes MCP tools to fetch ToonServer data and includes it in the context.
     """
+    started_at = perf_counter()
     print("\n\n[Generation Node] Compiling model context with MCP integration...")
 
     graph_config = GraphConfig.model_validate(config.get("configurable", {}))
@@ -198,11 +216,12 @@ async def generation_node(
                 print(f"  ✗ Error executing tool {tool.name}: {str(e)}\n")
     
     # 3. Build OpenRouter model configuration
-    llm = ChatOpenAI(
-        model=settings.DEFAULT_LLM_MODEL, 
-        temperature=settings.DEFAULT_MODEL_TEMPERATURE,
-        api_key=settings.OPENROUTER_API_KEY,
-        base_url="https://openrouter.ai/api/v1"
+    llm = ChatGoogleGenerativeAI(
+        model=settings.GOOGLE_LLM_MODEL,
+        api_key=settings.GOOGLE_API_KEY,
+        project=settings.GOOGLE_CLOUD_PROJECT,
+        location=settings.GOOGLE_CLOUD_LOCATION,
+        vertexai=True,
     )
     
     # 4. Extract the active optimized context (standard text, LLMLingua, or TOON strings)
@@ -230,12 +249,17 @@ async def generation_node(
     
     # 6. Invoke OpenRouter model with full context
     messages = state["messages"]
-    if graph_config.process_type == "llmlingua_only" and messages:
-        messages = messages[:-1]
     response = await llm.ainvoke([system_prompt] + messages)
     token_usage = _get_token_usage(response)
 
     print(f"\n\n[Generation Node] Response Generated: {response.content[:100]}...\n\n")
     print(f"[Generation Node] Token usage: {token_usage}")
 
-    return {"messages": [response], "token_usage": token_usage}
+    return {
+        "messages": [response],
+        "token_usage": token_usage,
+        "runtime_ms": {
+            **state.get("runtime_ms", {}),
+            "generation": (perf_counter() - started_at) * 1000,
+        },
+    }

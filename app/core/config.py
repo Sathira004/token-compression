@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     GOOGLE_CLOUD_LOCATION: str = "global"
     GOOGLE_LLM_MODEL: str = "gemini-3.1-flash-lite"
 
+    # MongoDB
+    MONGODB_URI: str = "mongodb://localhost:27017"
+    MONGODB_USERNAME: str | None = None
+    MONGODB_PASSWORD: str | None = None
+    MONGODB_DATABASE: str = "token_compression"
+    MONGODB_RUNS_COLLECTION: str = "runs"
+
     # Automatically extract key configurations directly out of a root level .env file
     model_config = SettingsConfigDict(
         env_file=ENV_FILE,
