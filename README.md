@@ -70,9 +70,9 @@ Each arm then applies its transformation to that evidence:
 
 | Request `process_type` | Evidence sent to the model | Instructions |
 | --- | --- | --- |
-| `normal_rag`, `naive_rag` | Uncompressed document text and JSON tool results | All three full skill files |
-| `llmlingua_only` | LLMLingua-compressed document prose + uncompressed JSON tool results | All three full skill files |
-| `toon_only`, `toon_skill` | TOON-encoded document and tool context | All three full skill files |
+| `normal_rag`, `naive_rag` | Uncompressed document text and JSON tool results | Shared base prompt plus all three skill instruction bodies |
+| `llmlingua_only` | LLMLingua-compressed document prose + uncompressed JSON tool results | Same shared base prompt and skill bodies |
+| `toon_only`, `toon_skill` | TOON-encoded document and tool context | Same shared base prompt and skill bodies |
 | `toon_plus_skill` | Same TOON encoding, supplied only for answering | Model-selected files read on demand |
 
 LLMLingua receives only retrieved document prose, with the original user question
@@ -107,6 +107,13 @@ instruction bodies, and the TOON evidence. Selection output is not used as
 answer evidence, and the large evidence is sent only once. This removes the
 multi-turn read-file discovery loop while preserving model-directed, on-demand
 skill loading.
+
+For `normal_rag`, `naive_rag`, `llmlingua_only`, `toon_only`, and `toon_skill`,
+the answer prompt instead includes the same fixed base instructions and all three
+skill instruction bodies, regardless of the question. The YAML metadata is
+excluded. These arms do not use skill selection; only `toon_plus_skill` keeps
+on-demand, model-selected loading. The fixed prompt and context label are
+identical across the three compression comparison arms.
 
 Adding a skill requires a new directory whose name matches the YAML `name`,
 containing `SKILL.md`; no selector changes are needed. The existing outer graph

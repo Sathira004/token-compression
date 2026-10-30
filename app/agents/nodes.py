@@ -34,11 +34,14 @@ SKILLS_DIR = Path(__file__).resolve().parent.parent / "skills"
 
 
 def _full_analysis_instructions() -> str:
-    """Reuse the same three instruction sources for all non-loader arms."""
-    return "\n\n".join(
-        f"{name} instructions:\n{(SKILLS_DIR / name / 'SKILL.md').read_text(encoding='utf-8')}"
-        for name in ANALYSIS_SKILLS
-    )
+    """Build the fixed, shared instruction prompt for the non-loader arms."""
+    blocks = []
+    for name in ANALYSIS_SKILLS:
+        content = (SKILLS_DIR / name / "SKILL.md").read_text(encoding="utf-8")
+        parts = content.split("---", 2)
+        body = parts[2].strip() if len(parts) == 3 else content.strip()
+        blocks.append(f"{name} instructions:\n{body}")
+    return "\n\n".join(blocks)
 
 
 async def route_query(state: AgentState) -> Dict[str, Any]:
@@ -191,39 +194,26 @@ async def generation_node(
     print("\n\n[Generation Node] Generating from the prepared context...")
 
     graph_config = GraphConfig.model_validate(config.get("configurable", {}))
-    use_toon = graph_config.process_type in (
-        "toon_only",
-        "toon_skill",
-        "toon_plus_skill",
-    )
-    
     # Context has already been prepared once, including document and MCP data.
     full_context = state.get("optimized_context", "")
-    if use_toon:
-        context_format = "Token-Oriented Object Notation (TOON)"
-    elif graph_config.process_type == ProcessType.LLMLINGUA_ONLY:
-        context_format = "LLMLingua-compressed document text and uncompressed JSON tool results"
-    else:
-        context_format = "uncompressed document text and JSON tool results"
-
-    instructions = (
-        NORMAL_RAG_INSTRUCTIONS
-        if graph_config.process_type == ProcessType.NORMAL_RAG
-        else "You are a highly efficient assistant operating within a strict context pipeline. "
-             "Use the provided context to answer the user request."
-    )
-    analysis_instructions = (
-        f"Analysis instructions:\n{_full_analysis_instructions()}\n\n"
-        if graph_config.process_type != ProcessType.TOON_PLUS_SKILL
-        else ""
-    )
-    system_prompt = {
-        "role": "system", 
-        "content": (
-            f"{instructions} Context includes token data in {context_format}.\n\n"
-            f"{analysis_instructions}"
+    if graph_config.process_type == ProcessType.TOON_PLUS_SKILL:
+        # Keep the skill-loader arm's own prompt/discovery path unchanged.
+        system_content = (
+            "You are a highly efficient assistant operating within a strict context pipeline. "
+            "Use the provided context to answer the user request. Context includes token data "
+            "in Token-Oriented Object Notation (TOON).\n\n"
             f"Context:\n{full_context}"
         )
+    else:
+        # The three compression comparison arms share this exact instruction prompt.
+        system_content = (
+            f"{NORMAL_RAG_INSTRUCTIONS}\n\n"
+            f"Analysis instructions:\n{_full_analysis_instructions()}\n\n"
+            f"Context:\n{full_context}"
+        )
+    system_prompt = {
+        "role": "system", 
+        "content": system_content,
     }
     
     # 6. Only the TOON_PLUS_SKILL arm enables Deep Agents and skill discovery.
