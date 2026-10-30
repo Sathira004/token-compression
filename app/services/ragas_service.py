@@ -8,6 +8,7 @@ from typing import Any
 from pydantic import SecretStr
 
 from app.core.config import settings
+from app.services.llm_service import create_vertex_llm
 
 
 def _install_ragas_vertex_compatibility() -> None:
@@ -37,7 +38,6 @@ async def evaluate_run(
 ) -> None:
     _install_ragas_vertex_compatibility()
 
-    from langchain_google_genai import ChatGoogleGenerativeAI
     from langchain_pinecone import PineconeEmbeddings
     from ragas.embeddings.base import BaseRagasEmbedding
     from ragas.llms import InstructorBaseRagasLLM
@@ -45,13 +45,7 @@ async def evaluate_run(
 
     class LangChainRagasLLM(InstructorBaseRagasLLM):
         def __init__(self) -> None:
-            self.model = ChatGoogleGenerativeAI(
-                model=settings.GOOGLE_LLM_MODEL,
-                api_key=settings.GOOGLE_API_KEY,
-                project=settings.GOOGLE_CLOUD_PROJECT,
-                location=settings.GOOGLE_CLOUD_LOCATION,
-                vertexai=True,
-            )
+            self.model = create_vertex_llm()
 
         def generate(self, prompt: str, response_model: Any) -> Any:
             return self.model.with_structured_output(response_model).invoke(prompt)
@@ -111,7 +105,7 @@ async def evaluate_run(
                 "ragas": {
                     "status": "completed",
                     "arm": arm,
-                    "evaluator_model": settings.GOOGLE_LLM_MODEL,
+                    "evaluator_model": settings.GOOGLE_LLM_MODEL_FOR_RAGAS,
                     "scores": scores,
                     "evaluated_at": datetime.now(timezone.utc),
                 }

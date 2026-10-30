@@ -27,7 +27,7 @@ def _get_compressor() -> Any:
 
 
 def compress_with_llmlingua(context: str, user_prompt: str) -> str:
-	"""Compress RAG context while keeping the user prompt as the question."""
+	"""Compress retrieved document prose; use the unchanged user question as guidance."""
 	context_parts = [
 		part.strip() for part in context.split("\n\n") if part and part.strip()
 	]

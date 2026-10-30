@@ -10,14 +10,16 @@ from app.agents.nodes import (
 builder = StateGraph(AgentState)
 
 # Nodes
+builder.add_node("route_query", route_query)
 builder.add_node("retrieve_documents", retrieval_node)
 builder.add_node("optimize_context", optimization_node)
 builder.add_node("generate_response", generation_node)
 
 # Conditional start: choose whether to retrieve or generate directly
+builder.add_edge(START, "route_query")
 builder.add_conditional_edges(
-    START,
-    route_query,
+    "route_query",
+    lambda state: "retrieve_documents" if state["needs_retrieval"] else "generate_response",
     {
         "retrieve_documents": "retrieve_documents",
         "generate_response": "optimize_context"  # Route to optimization first

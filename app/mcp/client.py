@@ -33,7 +33,7 @@ async def toonify_mcp_response(request: MCPToolCallRequest, handler):
         # toons.dumps handles arrays of uniform objects using efficient tabular matrices.
         toon_string = toons.dumps(payload)
         
-        print("\n📤 [MCP Interceptor] STEP 2: Converted TOON Payload Sent to OpenRouter LLM:")
+        print("\n📤 [MCP Interceptor] STEP 2: Converted TOON Payload for the Vertex AI model:")
         print("=" * 60)
         print(toon_string)
         print("=" * 60)

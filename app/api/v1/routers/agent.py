@@ -4,6 +4,7 @@ from app.agents.graph import graph
 from langchain_core.messages import HumanMessage
 from app.services.run_service import get_run_id, persist_and_evaluate_run
 from time import perf_counter
+from app.services.token_usage_service import phase_usage
 
 router = APIRouter()
 
@@ -61,6 +62,14 @@ async def trigger_agent_workflow(
                 "token_usage",
                 {"input": 0, "output": 0, "total": 0},
             ),
+            "token_breakdown": {
+                "measurement_version": 2,
+                "calls": final_state.get("model_calls", []),
+                "by_phase": phase_usage(final_state.get("model_calls", [])),
+                "context": final_state.get("context_tokens", {}),
+            },
+            "selected_tools": final_state.get("selected_tools", []),
+            "loaded_skills": final_state.get("loaded_skills", []),
         }
         
     except Exception as e:
