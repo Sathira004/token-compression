@@ -30,9 +30,15 @@ https://www.mongodb.com/docs/languages/python/pymongo-driver/current/connect/mon
 
 Each completed run is evaluated in the background for its selected `arm`. The
 MongoDB document is first written with `ragas.status: "pending"`, then updated
-with `faithfulness`, `relevance`, and `answer_relevancy` scores. Faithfulness
-is evaluated when the run has retrieved context; direct arms still receive
-answer relevancy evaluation.
+with `faithfulness`, `relevance`, `answer_relevancy`, `context_precision`, and
+`context_recall` scores. Faithfulness and context precision are evaluated when
+the run has retrieved context; direct arms still receive answer relevancy
+evaluation.
+
+Context precision is also evaluated when retrieved context is available.
+Context recall requires an expected answer, supplied as `reference_answer` in
+the chat request; without it, `ragas.scores.context_recall` is stored as `null`
+and `ragas.context_recall_status` explains that it was skipped.
 
 Evaluation uses plain answer text (excluding content-block metadata) and the
 original, uncompressed document and MCP tool evidence for every arm. This lets
@@ -134,6 +140,27 @@ are counted once. These extra counting requests are not generation calls;
 their latency is recorded separately as `latency_ms.token_counting`. If counting
 fails, context counts are null with status `unavailable`, never fabricated zeros.
 Background RAGAS evaluation usage is outside these workflow totals.
+
+## Running the benchmark
+
+Start the API, then run all 100 prompts through `normal_rag`,
+`llmlingua_only`, `toon_only`, and `toon_plus_skill` sequentially:
+
+```bash
+uv run python -m app.scripts.run_benchmark
+```
+
+The runner creates distinct run IDs and stores each successful run through the
+API. It continues after request failures and appends the batch ID, prompt ID,
+arm, error, and timestamp to `benchmark_failures.csv`. Retry one failed case
+with the prompt ID and arm from that file:
+
+```bash
+uv run python -m app.scripts.run_benchmark --case P001:toon_only
+```
+
+Use `--prompt-id P001` to run all four arms for one prompt, or `--base-url`
+and `--failure-log` to change the API address and failure-log path.
 
 New records carry `tokens.measurement_version: 2`. Older records omitted routing
 tokens and used different prompts/workflows; rerun all arms for comparisons.

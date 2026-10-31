@@ -35,13 +35,19 @@ async def evaluate_run(
     user_input: str,
     response: str,
     retrieved_context: str,
+    reference_answer: str | None = None,
 ) -> None:
     _install_ragas_vertex_compatibility()
 
     from langchain_pinecone import PineconeEmbeddings
     from ragas.embeddings.base import BaseRagasEmbedding
     from ragas.llms import InstructorBaseRagasLLM
-    from ragas.metrics.collections import AnswerRelevancy, Faithfulness
+    from ragas.metrics.collections import (
+        AnswerRelevancy,
+        ContextPrecisionWithoutReference,
+        ContextRecall,
+        Faithfulness,
+    )
 
     class LangChainRagasLLM(InstructorBaseRagasLLM):
         def __init__(self) -> None:
@@ -87,9 +93,19 @@ async def evaluate_run(
         "relevance": float(relevancy_result.value),
         "answer_relevancy": float(relevancy_result.value),
         "faithfulness": None,
+        "context_precision": None,
+        "context_recall": None,
     }
 
     if retrieved_context.strip():
+        precision_metric = ContextPrecisionWithoutReference(llm=evaluator_llm)
+        precision_result = await precision_metric.ascore(
+            user_input=user_input,
+            response=response,
+            retrieved_contexts=[retrieved_context],
+        )
+        scores["context_precision"] = float(precision_result.value)
+
         faithfulness_metric = Faithfulness(llm=evaluator_llm)
         faithfulness_result = await faithfulness_metric.ascore(
             user_input=user_input,
@@ -97,6 +113,15 @@ async def evaluate_run(
             retrieved_contexts=[retrieved_context],
         )
         scores["faithfulness"] = float(faithfulness_result.value)
+
+        if reference_answer and reference_answer.strip():
+            recall_metric = ContextRecall(llm=evaluator_llm)
+            recall_result = await recall_metric.ascore(
+                user_input=user_input,
+                reference=reference_answer,
+                retrieved_contexts=[retrieved_context],
+            )
+            scores["context_recall"] = float(recall_result.value)
 
     await collection.update_one(
         {"run_id": run_id},
@@ -106,7 +131,13 @@ async def evaluate_run(
                     "status": "completed",
                     "arm": arm,
                     "evaluator_model": settings.GOOGLE_LLM_MODEL_FOR_RAGAS,
+                    "reference_answer": reference_answer,
                     "scores": scores,
+                    "context_recall_status": (
+                        "completed"
+                        if scores["context_recall"] is not None
+                        else "skipped_missing_reference_answer"
+                    ),
                     "evaluated_at": datetime.now(timezone.utc),
                 }
             }

@@ -59,6 +59,7 @@ async def save_run(
                 "status": "pending",
                 "arm": payload.arm or payload.process_type.value,
                 "input": payload.ragas,
+                "reference_answer": payload.reference_answer,
             },
             "selected_tools": final_state.get("selected_tools", []),
             "loaded_skills": final_state.get("loaded_skills", []),
@@ -85,6 +86,7 @@ async def persist_and_evaluate_run(
             user_input=payload.message,
             response=response,
             retrieved_context=str(context),
+            reference_answer=payload.reference_answer,
         )
     except Exception as exc:
         await collection.update_one(

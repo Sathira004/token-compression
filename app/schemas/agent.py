@@ -20,3 +20,7 @@ class ChatRequest(BaseModel):
     repeat: int = Field(default=1, ge=1)
     model: str | None = None
     ragas: dict[str, float] = Field(default_factory=dict)
+    reference_answer: str | None = Field(
+        default=None,
+        description="Expected answer used to calculate reference-based context recall",
+    )
