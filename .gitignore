@@ -14,3 +14,6 @@ wheels/
 
 # docs
 docs/
+
+# User-supplied research documents
+*.pdf

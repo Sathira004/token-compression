@@ -139,9 +139,9 @@ docker start token-compression-mongo
 
 The API checks MongoDB connectivity at startup and creates a unique `run_id` index plus an index on experiment arm and creation time.
 
-### 5. Ingest the research documents
+### 5. Add your own documents and ingest them into Pinecone
 
-Place the PDFs to be indexed in the repository root, then run:
+Research PDFs are not included in this repository. Supply your own PDF documents that you have permission to use, place them in the repository root, and ingest them into your own configured Pinecone index:
 
 ```bash
 uv run python -m app.scripts.ingest
@@ -149,7 +149,9 @@ uv run python -m app.scripts.ingest
 
 The script reads **all root-level PDFs**, splits their text into chunks of 1,500 characters with 150 characters of overlap, embeds them through Pinecone, and uploads them to the configured index. It records the source filename in chunk metadata. Repeated ingestion can add duplicate content; prepare the index consistently before comparing experiments.
 
-The retrieval benchmark questions refer to `ONTO.pdf`, so include that document in the indexed corpus for those tasks.
+PDF files are excluded from Git by `.gitignore`, so your local documents will not be committed by default. Document retrieval requires an index populated with your own documents; installing the application alone does not populate Pinecone.
+
+The supplied retrieval benchmark questions were written for a particular ONTO research paper. Before using your own corpus, update the document-related questions in `app/benchmarks/prompts.py` to match your documents, including hybrid questions and any expected answers used for evaluation. The original benchmark is not a corpus-independent evaluation set.
 
 ### 6. Start the API
 
@@ -171,7 +173,7 @@ Send a question to `POST /api/v1/agent/chat`:
 curl -X POST http://127.0.0.1:8000/api/v1/agent/chat \
   -H 'Content-Type: application/json' \
   -d '{
-    "message": "Summarize the main findings of the ONTO paper using the indexed documents.",
+    "message": "Summarize the main findings of my indexed documents and identify the supporting evidence.",
     "thread_id": "readme-example-001",
     "process_type": "toon_plus_skill"
   }'
